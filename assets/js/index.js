@@ -11,6 +11,7 @@ const JUMP_VELOCITY=-1000;
 const GRAVITY_Y=2000;
 const MOVE_ACCELERATION=2000;
 const SCROLL_VELOCITY_Y=20;
+const NEXT_Y_SPAN_DELTA=-10;
 
 class SceneTitle extends Phaser.Scene{
   constructor(){
@@ -57,27 +58,30 @@ class SceneMain extends Phaser.Scene{
         }
       },
     });
+    this.userData={};
   }
   addFloor(x,y){
+    const {
+      floors,
+    }=this.userData;
 
-  }
+    const floor=this.add.rectangle(x,y,FLOOR_SIZE.width,FLOOR_SIZE.height,FLOOR_COLOR);
+    floors.add(floor);
+}
   updateFloors(){
     const {
       floors,
     }=this.userData;
 
     const mainCamera=this.cameras.main;
-    console.log(mainCamera.scrollY);
 
-    const nextYSpan=-200;
-
-    while(mainCamera.scrollY-FLOOR_SIZE.height/2<this.userData.lastFloorY+nextYSpan){
-
-      const floorY=this.userData.lastFloorY+nextYSpan;
-      const floor=this.add.rectangle(WIDTH/2,floorY,FLOOR_SIZE.width,FLOOR_SIZE.height,FLOOR_COLOR);
-
-      floors.add(floor);
+    while(mainCamera.scrollY-FLOOR_SIZE.height/2<this.userData.lastFloorY+this.userData.nextYSpan){
+      const floorX=Math.random()*(WIDTH-FLOOR_SIZE.width)+FLOOR_SIZE.width/2;
+      console.log(floorX);
+      const floorY=this.userData.lastFloorY+this.userData.nextYSpan;
+      this.addFloor(floorX,floorY);
       this.userData.lastFloorY=floorY;
+      this.userData.nextYSpan+=NEXT_Y_SPAN_DELTA;
     }
 
     floors.children.each((floor)=>{
@@ -103,12 +107,11 @@ class SceneMain extends Phaser.Scene{
     const floorCollider=this.physics.add.collider(player, floors);
 
 
-    let lastFloorY=null;
-    {
-      const floor=this.add.rectangle(WIDTH/2,HEIGHT/2+100,FLOOR_SIZE.width,FLOOR_SIZE.height,FLOOR_COLOR);
-      floors.add(floor);
-      lastFloorY=floor.body.center.y;
-    }
+    Object.assign(this.userData,{
+      floors,
+    });
+    let lastFloorY=HEIGHT/2+100;
+    this.addFloor(WIDTH/2,lastFloorY);
 
     const toKey=(key)=>this.input.keyboard.addKey(key);
     const upKeys=["W","SPACE","UP"].map(toKey);
@@ -125,9 +128,8 @@ class SceneMain extends Phaser.Scene{
     this.data.set({
       score:0,
     });
-    this.userData={
+    Object.assign(this.userData,{
       player,
-      floors,
       floorCollider,
       highScoreText,
       scoreText,
@@ -135,7 +137,8 @@ class SceneMain extends Phaser.Scene{
       leftKeys,
       rightKeys,
       lastFloorY,
-    }
+      nextYSpan:-100,
+    });
     this.updateFloors();
   
   }
