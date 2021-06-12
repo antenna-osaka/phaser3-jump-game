@@ -1,77 +1,208 @@
+const WIDTH=800;
+const HEIGHT=600;
+
+const FLOOR_SIZE={
+  width:256,
+  height:32,
+};
+const FLOOR_COLOR="0x00ff00";
+const PLAYER_COLOR="0x0000ff";
+const JUMP_VELOCITY=-1000;
+const GRAVITY_Y=2000;
+const MOVE_ACCELERATION=2000;
+const SCROLL_VELOCITY_Y=10;
+
 class SceneTitle extends Phaser.Scene{
   constructor(){
     super({
       key:"SceneTitle",
     });
   }
-  create(){
-    this.add.text(0,0,"SceneTitle");
-    setTimeout(()=>{
-      this.scene.start('SceneA');
-    },1000);
+  preload(){
+    this.load.image('bg', 'assets/img/bg.png');
   }
-  update(){
+  create(){
+    this.add.image(400, 300, 'bg');
+    const highScoreText=this.add.text(0,0,"");
+
+    this.add.text(WIDTH/2,HEIGHT/2,"phaser3 jump game").setOrigin(0.5,0.5);
+    this.add.text(WIDTH/2,HEIGHT/2+50,"PRESS SPACE TO START").setOrigin(0.5,0.5);
+    const space=this.input.keyboard.addKey("SPACE");
+    if(!this.registry.has("highScore")){
+      this.registry.set("highScore",0)
+    }
+    this.userData={
+      space,
+      highScoreText,
+    };
+  }
+  update(time,delta){
+    const {space,highScoreText}=this.userData;
+    if(space.isDown){
+      this.scene.start('SceneMain');
+    }
+    highScoreText.setText("high score:"+this.registry.get("highScore"));
+
   }
 }
 
-class SceneA extends Phaser.Scene{
+class SceneMain extends Phaser.Scene{
   constructor(){
     super({
-      key:"SceneA",
+      key:"SceneMain",
       physics: {
         default: 'arcade',
         arcade: {
-          gravity: { y: 200 }
+          gravity: { y: GRAVITY_Y }
         }
       },
     });
   }
-  preload(){
-    this.load.setBaseURL('http://labs.phaser.io');
+  addFloor(x,y){
 
-    this.load.image('sky', 'assets/skies/space3.png');
-    this.load.image('logo', 'assets/sprites/phaser3-logo.png');
-    this.load.image('red', 'assets/particles/red.png');
-  
+  }
+  updateFloors(){
+    const {
+      floors,
+    }=this.userData;
+
+    const mainCamera=this.cameras.main;
+    console.log(mainCamera.scrollY);
+
+    const nextYSpan=-200;
+
+    while(mainCamera.scrollY-FLOOR_SIZE.height/2<this.userData.lastFloorY+nextYSpan){
+
+      const floorY=this.userData.lastFloorY+nextYSpan;
+      const floor=this.add.rectangle(WIDTH/2,floorY,FLOOR_SIZE.width,FLOOR_SIZE.height,FLOOR_COLOR);
+
+      floors.add(floor);
+      this.userData.lastFloorY=floorY;
+    }
+
+    floors.children.each((floor)=>{
+      if(mainCamera.scrollY+HEIGHT<floor.body.position.y){
+        floors.remove(floor,true);
+      }
+    })
+  }
+  preload(){
+    this.load.image('bg', 'assets/img/bg.png');
   }
   create(){
-    setTimeout(()=>{
-      this.scene.start('SceneTitle');
-    },1000*10);
+    this.add.image(400, 300, 'bg').setScrollFactor(0);
+    const highScoreText=this.add.text(0,0,"").setScrollFactor(0);
+    const scoreText=this.add.text(0,20,"").setScrollFactor(0);
+
+    const player=this.add.rectangle(WIDTH/2,HEIGHT/2,64,64,PLAYER_COLOR);
+    this.physics.add.existing(player);
+
+    const floors=this.physics.add.staticGroup();
+    this.physics.add.collider(player, floors);
+
+    let lastFloorY=null;
+    {
+      const floor=this.add.rectangle(WIDTH/2,HEIGHT/2+100,FLOOR_SIZE.width,FLOOR_SIZE.height,FLOOR_COLOR);
+      floors.add(floor);
+      lastFloorY=floor.body.center.y;
+    }
+
+    const toKey=(key)=>this.input.keyboard.addKey(key);
+    const upKeys=["W","SPACE","UP"].map(toKey);
+    const leftKeys=["A","LEFT"].map(toKey);
+    const rightKeys=["D","RIGHT"].map(toKey);
 
 
-    this.add.image(400, 300, 'sky');
-    this.add.text(0,0,"SceneA");
 
-    var particles = this.add.particles('red');
-  
-    var emitter = particles.createEmitter({
-        speed: 100,
-        scale: { start: 1, end: 0 },
-        blendMode: 'ADD'
+    // setTimeout(()=>{
+    //   this.scene.start('SceneTitle');
+    // },1000*2);
+
+
+    this.data.set({
+      score:0,
     });
-  
-    var logo = this.physics.add.image(400, 100, 'logo');
-
-    const rect=this.add.rectangle(400, 100,100,100,0xff00ff);
-    this.physics.add.existing(rect);
-    rect.body.setCollideWorldBounds(true);
-
-    this.physics.add.collider(rect, logo);
-
-  
-    logo.setVelocity(100, 200);
-    logo.setBounce(1, 1);
-    logo.setCollideWorldBounds(true);
-  
-    emitter.startFollow(logo);
-
-    // const camera=this.cameras.main;
-    // camera.startFollow(logo);
-
+    this.userData={
+      player,
+      floors,
+      highScoreText,
+      scoreText,
+      upKeys,
+      leftKeys,
+      rightKeys,
+      lastFloorY,
+    }
+    this.updateFloors();
   
   }
-  update(){
+  update(time,delta){
+    const {
+      player,
+      highScoreText,
+      scoreText,
+      upKeys,
+      leftKeys,
+      rightKeys,
+    }=this.userData;
+
+
+    const mainCamera=this.cameras.main;
+    mainCamera.scrollY-=SCROLL_VELOCITY_Y*delta/1000;
+
+    const scoreFromY=Math.floor((player.body.center.y - HEIGHT/2)*-1);
+
+
+    this.updateFloors();
+
+    const score=Math.max(this.data.get("score"),scoreFromY);
+    this.data.set("score",score);
+    if(this.registry.get("highScore")<score){
+      this.registry.set("highScore",score);
+    }
+
+
+    highScoreText.setText("high score:"+this.registry.get("highScore"));
+    scoreText.setText("your score:"+this.data.get("score"));
+
+    const canJump=player.body.onFloor();
+    const isDown=(key)=>key.isDown;
+    if(canJump && upKeys.some(isDown)){
+      player.body.velocity.y=JUMP_VELOCITY;
+    }
+
+    player.body.acceleration.x=0;
+    if(leftKeys.some(isDown)){
+      player.body.acceleration.x=MOVE_ACCELERATION*-1;
+    }
+    if(rightKeys.some(isDown)){
+      player.body.acceleration.x=MOVE_ACCELERATION*+1;
+    }
+    if(HEIGHT < player.body.center.y){
+      this.scene.pause();
+      this.scene.launch("SceneGameover");
+      setTimeout(()=>{
+        this.scene.stop("SceneGameover");
+        this.scene.start("SceneTitle");
+      },1000*2);
+    }
+
+
+  }
+}
+
+
+class SceneGameover extends Phaser.Scene{
+  constructor(){
+    super({
+      key:"SceneGameover",
+    });
+  }
+  preload(){
+  }
+  create(){
+    const highScoreText=this.add.text(WIDTH/2,HEIGHT/2,"GAME OVER").setOrigin(0.5,0.5);
+  }
+  update(time,delta){
   }
 }
 
@@ -79,8 +210,8 @@ var config = {
   type: Phaser.AUTO,
   width: 800,
   height: 600,
-  scene: [SceneTitle, SceneA],
+  scene: [SceneTitle, SceneMain,SceneGameover],
 };
 
-var game = new Phaser.Game(config);
 
+window.game=new Phaser.Game(config);
