@@ -10,7 +10,7 @@ const PLAYER_COLOR="0x0000ff";
 const JUMP_VELOCITY=-1000;
 const GRAVITY_Y=2000;
 const MOVE_ACCELERATION=2000;
-const SCROLL_VELOCITY_Y=10;
+const SCROLL_VELOCITY_Y=20;
 
 class SceneTitle extends Phaser.Scene{
   constructor(){
@@ -94,11 +94,14 @@ class SceneMain extends Phaser.Scene{
     const highScoreText=this.add.text(0,0,"").setScrollFactor(0);
     const scoreText=this.add.text(0,20,"").setScrollFactor(0);
 
+
     const player=this.add.rectangle(WIDTH/2,HEIGHT/2,64,64,PLAYER_COLOR);
+    player.depth=1;
     this.physics.add.existing(player);
 
     const floors=this.physics.add.staticGroup();
-    this.physics.add.collider(player, floors);
+    const floorCollider=this.physics.add.collider(player, floors);
+
 
     let lastFloorY=null;
     {
@@ -125,6 +128,7 @@ class SceneMain extends Phaser.Scene{
     this.userData={
       player,
       floors,
+      floorCollider,
       highScoreText,
       scoreText,
       upKeys,
@@ -138,6 +142,7 @@ class SceneMain extends Phaser.Scene{
   update(time,delta){
     const {
       player,
+      floorCollider,
       highScoreText,
       scoreText,
       upKeys,
@@ -169,6 +174,9 @@ class SceneMain extends Phaser.Scene{
     if(canJump && upKeys.some(isDown)){
       player.body.velocity.y=JUMP_VELOCITY;
     }
+
+    const isRising=player.body.velocity.y<0;
+    floorCollider.active=!isRising;
 
     player.body.acceleration.x=0;
     if(leftKeys.some(isDown)){
