@@ -25,9 +25,12 @@ class SceneTitle extends Phaser.Scene{
   create(){
     this.add.image(400, 300, 'bg');
     const highScoreText=this.add.text(0,0,"");
+    const gamepadTotalText=this.add.text(WIDTH,0,"").setOrigin(1.0,0.0);
 
     this.add.text(WIDTH/2,HEIGHT/2,"phaser3 jump game").setOrigin(0.5,0.5);
     this.add.text(WIDTH/2,HEIGHT/2+50,"PRESS SPACE TO START").setOrigin(0.5,0.5);
+    this.add.text(WIDTH/2,HEIGHT/2+70,"OR BUTTON_0 BUTTON_1").setOrigin(0.5,0.5);
+    
     const space=this.input.keyboard.addKey("SPACE");
     if(!this.registry.has("highScore")){
       this.registry.set("highScore",0)
@@ -35,14 +38,24 @@ class SceneTitle extends Phaser.Scene{
     this.userData={
       space,
       highScoreText,
+      gamepadTotalText,
     };
   }
   update(time,delta){
-    const {space,highScoreText}=this.userData;
+    const {space,highScoreText,gamepadTotalText}=this.userData;
     if(space.isDown){
       this.scene.start('SceneMain');
     }
+    this.input.gamepad.gamepads.forEach((pad)=>{
+      if(pad){
+        if(pad.isButtonDown(0) | pad.isButtonDown(1)){
+          this.scene.start('SceneMain');
+        }
+      }
+    });
     highScoreText.setText("high score:"+this.registry.get("highScore"));
+
+    gamepadTotalText.setText("gamepad.total: "+this.input.gamepad.total);
 
   }
 }
@@ -153,6 +166,49 @@ class SceneMain extends Phaser.Scene{
       rightKeys,
     }=this.userData;
 
+    const isGamepadLeft=()=>{
+      return this.input.gamepad.gamepads.some((pad)=>{
+        if(pad){
+          if(pad.left){
+            return true;
+          }
+        }
+        return false;
+      });
+        
+    };
+    const isGamepadRight=()=>{
+      return this.input.gamepad.gamepads.some((pad)=>{
+        if(pad){
+          if(pad.right){
+            return true;
+          }
+        }
+        return false;
+      });
+        
+    };
+    const isGamepadUp=()=>{
+      return this.input.gamepad.gamepads.some((pad)=>{
+        if(pad){
+          if(pad.up || pad.isButtonDown(0) || pad.isButtonDown(1)){
+            return true;
+          }
+        }
+        return false;
+      });
+        
+    };
+    const getGamepadMove=()=>{
+      const total= this.input.gamepad.gamepads.map((pad)=>{
+        let move=0;
+        move+=pad.leftStick.x;
+        move+=pad.rightStick.x;
+        return move;
+      }).reduce((acc,v)=>acc+v,0);
+      return total;
+    }
+
 
     const mainCamera=this.cameras.main;
     mainCamera.scrollY-=SCROLL_VELOCITY_Y*delta/1000;
@@ -174,20 +230,25 @@ class SceneMain extends Phaser.Scene{
 
     const canJump=player.body.onFloor();
     const isDown=(key)=>key.isDown;
-    if(canJump && upKeys.some(isDown)){
+    if(canJump && (upKeys.some(isDown) || isGamepadUp())){
       player.body.velocity.y=JUMP_VELOCITY;
     }
 
     const isRising=player.body.velocity.y<0;
     floorCollider.active=!isRising;
 
-    player.body.acceleration.x=0;
-    if(leftKeys.some(isDown)){
-      player.body.acceleration.x=MOVE_ACCELERATION*-1;
+    let move=0;
+    if(leftKeys.some(isDown) || isGamepadLeft()){
+      move-=1;
     }
-    if(rightKeys.some(isDown)){
-      player.body.acceleration.x=MOVE_ACCELERATION*+1;
+    if(rightKeys.some(isDown) || isGamepadRight()){
+      move+=1;
     }
+    move+=getGamepadMove();
+
+    player.body.acceleration.x=MOVE_ACCELERATION*Math.min(1,Math.max(-1,move));
+          
+
     if(HEIGHT < player.body.center.y){
       this.scene.pause();
       this.scene.launch("SceneGameover");
@@ -222,6 +283,9 @@ var config = {
   width: 800,
   height: 600,
   scene: [SceneTitle, SceneMain,SceneGameover],
+  input:{
+    gamepad: true,
+  },
 };
 
 
